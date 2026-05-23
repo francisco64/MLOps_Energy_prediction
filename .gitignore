@@ -1,0 +1,15 @@
+# Local MLflow/runtime artifacts
+mlflow.db
+mlruns/
+
+# macOS metadata
+.DS_Store
+
+# Python cache files
+__pycache__/
+*.py[cod]
+
+# Environment files
+.env
+.venv/
+venv/

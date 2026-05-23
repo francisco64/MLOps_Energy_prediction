@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MLOps Architecture</title>
+<style>
+/* ─── Reset ────────────────────────────────────────────── */
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{background:#fff;color:#111827;
+  font-family:'Segoe UI',Arial,sans-serif;min-width:1660px}
+body{padding:28px 50px 64px}
+
+/* ─── Header ────────────────────────────────────────────── */
+.ptitle{font-size:18px;font-weight:700;letter-spacing:.2px;color:#111827;margin-bottom:3px}
+.sub{font-size:9.5px;color:#9CA3AF;font-family:'Courier New',monospace;margin-bottom:18px}
+
+/* ─── Pipeline legend ───────────────────────────────────── */
+.legend{display:flex;gap:18px;flex-wrap:wrap;padding:8px 16px;margin-bottom:24px;
+  background:#F9FAFB;border:1px solid #E5E7EB;border-radius:7px}
+.leg{display:flex;align-items:center;gap:8px;font-size:10px;color:#374151}
+.leg-bar{width:24px;height:2.5px;border-radius:2px}
+.leg-dash{width:24px;height:0;border-top:2px dashed}
+
+/* ─── Wrapper ───────────────────────────────────────────── */
+#gw{position:relative;padding-left:172px;display:inline-block;min-width:1400px}
+
+/* ─── CSS Grid: 3 cols, generous row-gap for pill routing ─ */
+#grid{display:grid;grid-template-columns:366px 432px 366px;
+      column-gap:88px;row-gap:140px;align-items:start}
+#airflow   {grid-column:1/4;grid-row:1}
+#trainpy   {grid-column:1;  grid-row:2}
+#fastapi   {grid-column:2;  grid-row:2}
+#monitorpy {grid-column:3;  grid-row:2}
+#mlflow    {grid-column:1;  grid-row:3}
+#postgres  {grid-column:2;  grid-row:3}
+#evidently {grid-column:3;  grid-row:3}
+#row4      {grid-column:1/4;grid-row:4;display:flex;gap:18px;align-items:start}
+#row4>.box {flex:1}
+
+/* ─── Box shell ─────────────────────────────────────────── */
+.box{border-radius:8px;border:1px solid #E5E7EB;border-top-width:3px;
+  overflow:hidden;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.bh{padding:9px 14px 7px;border-bottom:1px solid #F3F4F6}
+.bt{font-size:12.5px;font-weight:700;display:flex;align-items:baseline;
+  flex-wrap:wrap;gap:5px;margin-bottom:2px}
+.bp{padding:1.5px 7px;border-radius:10px;font-size:7px;font-weight:700;
+  font-family:'Courier New',monospace;line-height:1}
+.br{font-size:8px;color:#9CA3AF;font-family:'Courier New',monospace}
+.bdesc{font-size:8.5px;font-style:italic;color:#6B7280;
+  padding:7px 14px 0;line-height:1.44}
+.bb{padding:8px 14px 12px}
+
+/* Section headings inside box */
+.sh{font-size:7px;font-weight:700;text-transform:uppercase;letter-spacing:1.4px;
+  color:#CBD5E1;margin:8px 0 3px;display:block}
+
+/* Code lines — default colour; overridden per framework */
+.cl{font-size:8.5px;font-family:'Courier New',monospace;line-height:1.65;
+  display:block;white-space:pre-wrap}
+
+/* ── Framework colours (tuned for white bg — no neon) ── */
+.ml {color:#4F46E5}  /* MLflow       — indigo-600   */
+.pt {color:#DC2626}  /* PyTorch      — red-600       */
+.ev {color:#7C3AED}  /* Evidently    — violet-700    */
+.pm {color:#EA580C}  /* Prometheus   — orange-600    */
+.fa {color:#059669}  /* FastAPI      — emerald-600   */
+.sq {color:#0284C7}  /* SQLAlchemy   — sky-600       */
+.sh2{color:#D97706}  /* Shell        — amber-600     */
+.fs {color:#6B7280}  /* Filesystem   — gray-500      */
+.mu {color:#9CA3AF}  /* muted plain  — gray-400      */
+
+/* ─── TabularClassifier sub-box ─────────────────────────── */
+.sub{margin:9px 0 0;border-radius:5px;border:1.5px dashed #BFDBFE;
+  background:#EFF6FF;padding:8px 11px}
+.stitle{font-size:9.5px;font-weight:700;color:#1D4ED8;margin-bottom:5px}
+
+/* ─── Client box ─────────────────────────────────────────── */
+#client{position:absolute;left:8px;width:150px;border-radius:7px;
+  border:1px solid #D1D5DB;border-top:3px solid #374151;
+  background:#fff;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+#client .ch{padding:7px 11px 5px;background:#F9FAFB;border-bottom:1px solid #F3F4F6}
+#client .ct{font-size:11px;font-weight:700;color:#374151}
+#client .cr{padding:7px 11px;font-size:8px;color:#6B7280;
+  font-family:'Courier New',monospace;line-height:1.5}
+
+/* ─── SVG overlay ─────────────────────────────────────────── */
+#svgl{position:absolute;top:0;left:0;pointer-events:none;overflow:visible;z-index:10}
+
+/* ─── Swimlane labels ─────────────────────────────────────── */
+.sw{position:absolute;left:0;width:22px;display:flex;align-items:center;justify-content:center}
+.sw span{writing-mode:vertical-lr;transform:rotate(180deg);
+  font-size:6.5px;font-weight:700;letter-spacing:2px;
+  text-transform:uppercase;color:#E2E8F0}
+</style>
+</head>
+<body>
+
+<div class="ptitle">MLOps System Architecture</div>
+<div class="sub">Docker Compose · FastAPI serving · Airflow orchestration · MLflow tracking + registry · Evidently monitoring · Prometheus + Grafana observability</div>
+
+<!-- Pipeline legend -->
+<div class="legend">
+  <div class="leg"><div class="leg-bar" style="background:#B45309"></div>Training pipeline</div>
+  <div class="leg"><div class="leg-bar" style="background:#4338CA"></div>Model reload</div>
+  <div class="leg"><div class="leg-bar" style="background:#0D9488"></div>Prediction / inference</div>
+  <div class="leg"><div class="leg-bar" style="background:#7C3AED"></div>Monitoring pipeline</div>
+  <div class="leg"><div class="leg-bar" style="background:#C2410C"></div>Observability</div>
+  <div class="leg"><div class="leg-dash" style="border-color:#92400E"></div>Filesystem I/O</div>
+</div>
+
+<div id="gw">
+  <!-- Swimlane labels — JS positions them -->
+  <div id="sw0" class="sw"><span>Orchestration</span></div>
+  <div id="sw1" class="sw"><span>Core&nbsp;Services</span></div>
+  <div id="sw2" class="sw"><span>Persistence</span></div>
+  <div id="sw3" class="sw"><span>Infrastructure</span></div>
+
+  <!-- Client box -->
+  <div id="client">
+    <div class="ch"><div class="ct">Client</div></div>
+    <div class="cr">External HTTP<br>POST /predict<br>{30 float features}</div>
+  </div>
+
+  <div id="grid">
+
+    <!-- ════ ROW 1 : AIRFLOW ════ -->
+    <div id="airflow" class="box" style="border-top-color:#D97706">
+      <div class="bh" style="background:#FFFBEB">
+        <div class="bt" style="color:#D97706">① AIRFLOW
+          <span class="bp" style="background:#FEF3C7;color:#92400E">:8080</span>
+          <span class="bp" style="background:#FEF3C7;color:#92400E">Orchestrator</span>
+        </div>
+        <div class="br">airflow standalone · retries=1 · retry_delay=2 min</div>
+      </div>
+      <div class="bdesc">Cron-based task runner that fires HTTP calls to FastAPI to trigger training and monitoring on a schedule, with retry logic and task dependency ordering.</div>
+      <div class="bb">
+        <span class="sh">DAG 1 — retrain_model_daily @daily</span>
+        <span class="cl mu">task_1: train_and_register_model</span>
+        <span class="cl mu">task_2: reload_fastapi_model</span>
+        <span class="cl mu">train_task >> reload_task  ← sequential dependency</span>
+        <span class="sh">DAG 2 — monitor_model_hourly @hourly</span>
+        <span class="cl mu">task: run_evidently_monitoring</span>
+      </div>
+    </div>
+
+    <!-- ════ ROW 2 ════ -->
+    <div id="trainpy" class="box" style="border-top-color:#DC2626">
+      <div class="bh" style="background:#FEF2F2">
+        <div class="bt" style="color:#DC2626">③ src/train.py
+          <span class="bp" style="background:#FEE2E2;color:#991B1B">PyTorch</span>
+        </div>
+        <div class="br">Training script · sklearn breast_cancer dataset</div>
+      </div>
+      <div class="bdesc">Trains a binary classifier from scratch each run, logs every hyperparameter and per-epoch metric to MLflow, registers the model, and saves the training distribution as the drift reference baseline.</div>
+      <div class="bb">
+        <span class="sh">MLflow tracking</span>
+        <span class="cl ml">mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)</span>
+        <span class="cl ml">with mlflow.start_run(run_name="pytorch_tabular_classifier") as run:</span>
+        <span class="cl ml">  mlflow.log_params({epochs:25, batch_size:32, lr:0.001, input_dim:30})</span>
+        <span class="cl ml">  mlflow.log_metrics({train_loss, valid_loss, valid_auc}, step=epoch)</span>
+        <span class="cl ml">  mlflow.pytorch.log_model(model, "model", registered_model_name=MODEL_NAME)</span>
+        <span class="cl ml">  mlflow.log_artifact(REFERENCE_FILE, "monitoring_reference")</span>
+        <span class="sh">PyTorch model + training loop</span>
+        <span class="cl pt">model = TabularClassifier(input_dim=len(feature_names))</span>
+        <span class="cl pt">model.set_normalization_stats(mean=X_train.mean(), std=X_train.std())</span>
+        <span class="cl pt">optimizer = Adam(model.parameters(), lr=0.001)</span>
+        <span class="cl pt">loss_fn = nn.BCEWithLogitsLoss()  # 25 epochs, batch=32</span>
+        <span class="cl pt">optimizer.zero_grad() → loss.backward() → optimizer.step()</span>
+        <span class="sh">Reference data (filesystem)</span>
+        <span class="cl fs">X_train, X_temp = train_test_split(X, y, test_size=0.30, stratify=y)</span>
+        <span class="cl fs">reference_df["prediction_probability"] = probs</span>
+        <span class="cl fs">reference_df["prediction"] = (probs >= 0.5).astype(int)</span>
+        <span class="cl fs">reference_df.to_parquet(REFERENCE_FILE)</span>
+      </div>
+    </div>
+
+    <div id="fastapi" class="box" style="border-top-color:#0D9488">
+      <div class="bh" style="background:#F0FDF9">
+        <div class="bt" style="color:#0D9488">② FASTAPI
+          <span class="bp" style="background:#CCFBF1;color:#0F766E">:8000</span>
+          <span class="bp" style="background:#CCFBF1;color:#0F766E">API Gateway</span>
+        </div>
+        <div class="br">startup: init_db() → load_latest_model()</div>
+      </div>
+      <div class="bdesc">Central hub that serves real-time predictions, delegates training and monitoring to child processes, and exposes a Prometheus metrics endpoint — all in a single uvicorn process.</div>
+      <div class="bb">
+        <span class="sh">FastAPI routes</span>
+        <span class="cl fa">app = FastAPI(title="MLOps Tutorial API")</span>
+        <span class="cl fa">@app.on_event("startup") → init_db() + load_latest_model()</span>
+        <span class="cl fa">@app.post("/predict")        → validate → run inference → log</span>
+        <span class="cl fa">@app.post("/train")           → subprocess.run(["python","-m","src.train"])</span>
+        <span class="cl fa">@app.post("/reload-model")    → load_latest_model()</span>
+        <span class="cl fa">@app.post("/run-monitoring")  → subprocess.run(["python","-m","src.monitor"])</span>
+        <span class="cl fa">app.mount("/reports", StaticFiles(directory="reports"))</span>
+        <span class="sh">Prometheus counters &amp; gauges</span>
+        <span class="cl pm">metrics_app = make_asgi_app()  # mounted at /metrics</span>
+        <span class="cl pm">PREDICTION_REQUESTS = Counter("prediction_requests_total", ...)</span>
+        <span class="cl pm">PREDICTION_LATENCY  = Histogram("prediction_latency_seconds", ...)</span>
+        <span class="cl pm">PREDICTED_CLASS_COUNTER = Counter("prediction_class_total", labelnames=[...])</span>
+        <span class="cl pm">MODEL_VERSION_GAUGE = Gauge("loaded_model_version", ...)</span>
+        <span class="sh">Prediction log (SQLAlchemy)</span>
+        <span class="cl sq">log_prediction(features=request.features, prediction=pred, probability=prob)</span>
+        <!-- TabularClassifier sub-box -->
+        <div class="sub">
+          <div class="stitle">⑫ TabularClassifier — PyTorch</div>
+          <span class="cl pt" style="font-size:8px">class TabularClassifier(nn.Module):</span>
+          <span class="cl pt" style="font-size:8px">  Linear(30→32) → ReLU → Dropout(0.1) → Linear(32→16) → ReLU → Linear(16→1)</span>
+          <span class="cl pt" style="font-size:8px">  forward(x): x = (x − mean) / std  →  net(x).squeeze(1)</span>
+          <span class="cl pt" style="font-size:8px">prob = torch.sigmoid(model_state["model"](x)).item()</span>
+          <span class="cl pt" style="font-size:8px">pred = 1 if prob >= 0.5 else 0</span>
+          <span class="cl ml" style="font-size:8px">model_state["model"] = mlflow.pytorch.load_model(model_uri)</span>
+          <span class="cl pm" style="font-size:8px">MODEL_VERSION_GAUGE.set(version_number)</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="monitorpy" class="box" style="border-top-color:#7C3AED">
+      <div class="bh" style="background:#F5F3FF">
+        <div class="bt" style="color:#7C3AED">④ src/monitor.py
+          <span class="bp" style="background:#EDE9FE;color:#5B21B6">Evidently</span>
+        </div>
+        <div class="br">Monitoring script · invoked via POST /run-monitoring</div>
+      </div>
+      <div class="bdesc">Hourly job that fetches the 500 most recent predictions from PostgreSQL and runs Evidently's KS-test-based drift detection against the training distribution, saving an HTML report browsable via FastAPI.</div>
+      <div class="bb">
+        <span class="sh">Load current predictions (SQLAlchemy)</span>
+        <span class="cl sq">rows = load_recent_predictions(limit=500)</span>
+        <span class="cl sq">if len(rows) &lt; 30: write monitoring_skipped.txt; return</span>
+        <span class="cl sq">current_df = pd.DataFrame([row["features"] for row in rows])</span>
+        <span class="cl sq">current_df["prediction_probability"] = [row["probability"] for row in rows]</span>
+        <span class="cl sq">current_df = current_df[reference_df.columns]  # align column order</span>
+        <span class="sh">Reference snapshot</span>
+        <span class="cl fs">reference_df = pd.read_parquet(REFERENCE_FILE)</span>
+        <span class="sh">Evidently drift report</span>
+        <span class="cl ev">report = Report([DataSummaryPreset(), DataDriftPreset()])</span>
+        <span class="cl ev">evaluation = report.run(current_data=current_df, reference_data=reference_df)</span>
+        <span class="cl ev">evaluation.save_html(REPORTS_DIR / "data_drift_latest.html")</span>
+        <span class="cl ev">evaluation.save_json(REPORTS_DIR / "data_drift_latest.json")</span>
+        <span class="cl ev">evaluation.save_html(REPORTS_DIR / f"data_drift_{timestamp}.html")</span>
+      </div>
+    </div>
+
+    <!-- ════ ROW 3 ════ -->
+    <div id="mlflow" class="box" style="border-top-color:#4338CA">
+      <div class="bh" style="background:#EEF2FF">
+        <div class="bt" style="color:#4338CA">⑤ MLflow
+          <span class="bp" style="background:#E0E7FF;color:#3730A3">:5001</span>
+          <span class="bp" style="background:#E0E7FF;color:#3730A3">Tracking+Registry</span>
+        </div>
+        <div class="br">Experiment tracking · model versioning</div>
+      </div>
+      <div class="bdesc">Persistent store for every training run's parameters and metrics, plus a versioned model registry so the API always promotes and loads the highest version number automatically.</div>
+      <div class="bb">
+        <span class="sh">Server startup (shell)</span>
+        <span class="cl sh2">mlflow server \</span>
+        <span class="cl sh2">  --backend-store-uri postgresql+psycopg://postgres@postgres:5432/mlops \</span>
+        <span class="cl sh2">  --default-artifact-root file:///app/mlruns \</span>
+        <span class="cl sh2">  --host 0.0.0.0 --port 5001</span>
+        <span class="sh">FastAPI loads model via MLflow client</span>
+        <span class="cl ml">client = MlflowClient(tracking_uri=MLFLOW_TRACKING_URI)</span>
+        <span class="cl ml">versions = client.search_model_versions(f"name = '{MODEL_NAME}'")</span>
+        <span class="cl ml">latest   = max(versions, key=lambda mv: int(mv.version))</span>
+        <span class="cl ml">model    = mlflow.pytorch.load_model(f"runs:/{latest.run_id}/model")</span>
+        <span class="cl ml">model.eval()</span>
+      </div>
+    </div>
+
+    <div id="postgres" class="box" style="border-top-color:#0369A1">
+      <div class="bh" style="background:#F0F9FF">
+        <div class="bt" style="color:#0369A1">⑥ PostgreSQL
+          <span class="bp" style="background:#E0F2FE;color:#075985">:5432</span>
+          <span class="bp" style="background:#E0F2FE;color:#075985">mlops db</span>
+        </div>
+        <div class="br">Shared DB · two consumers · two schemas</div>
+      </div>
+      <div class="bdesc">Shared relational store with two distinct roles: MLflow's metadata backend (auto-managed) and the app's prediction log table (written by FastAPI on every /predict call, read by monitor.py hourly).</div>
+      <div class="bb">
+        <span class="sh">prediction_logs table (src/db.py)</span>
+        <span class="cl sq">Table("prediction_logs", metadata,</span>
+        <span class="cl sq">  Column("id",          Integer, primary_key=True, autoincrement=True),</span>
+        <span class="cl sq">  Column("timestamp",   DateTime, server_default="CURRENT_TIMESTAMP"),</span>
+        <span class="cl sq">  Column("features",    JSON,    nullable=False),</span>
+        <span class="cl sq">  Column("prediction",  Integer, nullable=False),</span>
+        <span class="cl sq">  Column("probability", Float,   nullable=False),</span>
+        <span class="cl sq">)</span>
+        <span class="cl sq">metadata.create_all(engine)  # called via init_db() on API startup</span>
+        <span class="cl sq">conn.execute(prediction_logs.insert().values(...))  # write path</span>
+        <span class="cl sq">SELECT … FROM prediction_logs ORDER BY timestamp DESC LIMIT 500  # read</span>
+      </div>
+    </div>
+
+    <div id="evidently" class="box" style="border-top-color:#6D28D9">
+      <div class="bh" style="background:#F5F3FF">
+        <div class="bt" style="color:#6D28D9">Evidently AI
+          <span class="bp" style="background:#EDE9FE;color:#4C1D95">Drift Reports</span>
+        </div>
+        <div class="br">Data Drift + Data Quality analysis</div>
+      </div>
+      <div class="bdesc">Runs the KS test on each of the 30 features plus the prediction probability column to detect whether the live request distribution has statistically drifted from the training baseline.</div>
+      <div class="bb">
+        <span class="sh">Evidently report engine</span>
+        <span class="cl ev">from evidently import Report</span>
+        <span class="cl ev">from evidently.presets import DataDriftPreset, DataSummaryPreset</span>
+        <span class="cl ev"># DataSummaryPreset → per-feature stats (mean, std, missing, dist.)</span>
+        <span class="cl ev"># DataDriftPreset   → KS test per feature; drift_detected: True/False</span>
+        <span class="cl ev">report.run(</span>
+        <span class="cl ev">  current_data=current_df,      # 500 rows from prediction_logs</span>
+        <span class="cl ev">  reference_data=reference_df   # X_train snapshot</span>
+        <span class="cl ev">)</span>
+      </div>
+    </div>
+
+    <!-- ════ ROW 4 : flex strip of 5 ════ -->
+    <div id="row4">
+
+      <div id="mlruns" class="box" style="border-top-color:#374151">
+        <div class="bh" style="background:#F9FAFB">
+          <div class="bt" style="color:#374151;font-size:11.5px">⑦ ./mlruns
+            <span class="bp" style="background:#F3F4F6;color:#374151">Volume</span>
+          </div>
+          <div class="br">Shared Docker volume</div>
+        </div>
+        <div class="bdesc" style="padding:5px 14px 0;font-size:8px">Filesystem mount shared across MLflow, FastAPI, and Airflow containers so artifact files written during training are immediately readable by the API.</div>
+        <div class="bb">
+          <span class="cl fs">model.pth           ← PyTorch state dict</span>
+          <span class="cl fs">feature_names.txt   ← ordered 30-feature list</span>
+          <span class="cl fs">reference.parquet   ← training distribution copy</span>
+          <span class="sh">Volume mounts</span>
+          <span class="cl fs">mlflow: /app/mlruns  ·  api: /app/mlruns  ·  airflow: /app/mlruns</span>
+        </div>
+      </div>
+
+      <div id="refparq" class="box" style="border-top-color:#92400E">
+        <div class="bh" style="background:#FFFBEB">
+          <div class="bt" style="color:#92400E;font-size:11.5px">⑧ ref.parquet
+            <span class="bp" style="background:#FEF3C7;color:#78350F">File</span>
+          </div>
+          <div class="br">./data/reference/</div>
+        </div>
+        <div class="bdesc" style="padding:5px 14px 0;font-size:8px">Snapshot of the training input distribution written once per training run; serves as the statistical baseline that Evidently compares every hourly batch of live predictions against.</div>
+        <div class="bb">
+          <span class="cl fs">Columns: X_train (30 features)</span>
+          <span class="cl fs">       + prediction_probability (float)</span>
+          <span class="cl fs">       + prediction (int)</span>
+          <span class="cl fs">Written: reference_df.to_parquet(REFERENCE_FILE)</span>
+          <span class="cl fs">Read:    pd.read_parquet(REFERENCE_FILE)</span>
+          <span class="cl ml">Also: mlflow.log_artifact(REFERENCE_FILE, "monitoring_reference")</span>
+        </div>
+      </div>
+
+      <div id="reports" class="box" style="border-top-color:#047857">
+        <div class="bh" style="background:#F0FDF4">
+          <div class="bt" style="color:#047857;font-size:11.5px">⑨ ./reports/
+            <span class="bp" style="background:#DCFCE7;color:#065F46">Output</span>
+          </div>
+          <div class="br">Monitoring output · filesystem</div>
+        </div>
+        <div class="bdesc" style="padding:5px 14px 0;font-size:8px">Filesystem folder where Evidently saves HTML drift reports that are immediately served by FastAPI as a static site, making drift history browsable without a separate dashboard.</div>
+        <div class="bb">
+          <span class="cl fs">data_drift_latest.html       ← always overwritten</span>
+          <span class="cl fs">data_drift_latest.json       ← machine-readable version</span>
+          <span class="cl fs">data_drift_&lt;timestamp&gt;.html  ← archive per run</span>
+          <span class="cl fa">app.mount("/reports", StaticFiles(directory=REPORTS_DIR))</span>
+        </div>
+      </div>
+
+      <div id="prometheus" class="box" style="border-top-color:#C2410C">
+        <div class="bh" style="background:#FFF7ED">
+          <div class="bt" style="color:#C2410C;font-size:11.5px">⑩ Prometheus
+            <span class="bp" style="background:#FED7AA;color:#9A3412">:9090</span>
+          </div>
+          <div class="br">Metrics collection + TSDB</div>
+        </div>
+        <div class="bdesc" style="padding:5px 14px 0;font-size:8px">Pull-based time-series database that scrapes the FastAPI /metrics endpoint every 5 seconds, turning Python Counter/Histogram/Gauge objects into queryable time series.</div>
+        <div class="bb">
+          <span class="sh">prometheus.yml</span>
+          <span class="cl pm">global: scrape_interval: 5s</span>
+          <span class="cl pm">- job_name: "fastapi_api"</span>
+          <span class="cl pm">  metrics_path: /metrics</span>
+          <span class="cl pm">  targets: ["api:8000"]</span>
+          <span class="sh">Metrics collected</span>
+          <span class="cl pm">prediction_requests_total  (Counter)</span>
+          <span class="cl pm">prediction_latency_seconds (Histogram)</span>
+          <span class="cl pm">prediction_class_total     (Counter, label=class)</span>
+          <span class="cl pm">loaded_model_version       (Gauge)</span>
+        </div>
+      </div>
+
+      <div id="grafana" class="box" style="border-top-color:#9A3412">
+        <div class="bh" style="background:#FFF7ED">
+          <div class="bt" style="color:#9A3412;font-size:11.5px">⑪ Grafana
+            <span class="bp" style="background:#FED7AA;color:#7C2D12">:3000</span>
+          </div>
+          <div class="br">Dashboards · server-side proxy</div>
+        </div>
+        <div class="bdesc" style="padding:5px 14px 0;font-size:8px">Dashboard layer that queries Prometheus via PromQL on the server side, so all traffic stays inside the Docker network; auto-provisioned with the Prometheus data source from a YAML file at container start.</div>
+        <div class="bb">
+          <span class="sh">datasource.yml</span>
+          <span class="cl pm">- name: Prometheus   type: prometheus</span>
+          <span class="cl pm">  access: proxy   # Grafana proxies; browser never calls Prometheus</span>
+          <span class="cl pm">  url: http://prometheus:9090   isDefault: true</span>
+          <span class="sh">PromQL examples</span>
+          <span class="cl pm">rate(prediction_requests_total[1m])</span>
+          <span class="cl pm">histogram_quantile(0.99, prediction_latency_seconds_bucket)</span>
+          <span class="cl pm">prediction_class_total{predicted_class="1"}</span>
+        </div>
+      </div>
+
+    </div><!-- #row4 -->
+  </div><!-- #grid -->
+  <svg id="svgl"></svg>
+</div><!-- #gw -->
+
+<script>
+window.addEventListener('load', function () {
+  var gw=document.getElementById('gw'), svg=document.getElementById('svgl');
+  var wr=gw.getBoundingClientRect();
+  function sz(){var W=gw.scrollWidth,H=gw.scrollHeight;svg.style.width=W+'px';svg.style.height=H+'px';svg.setAttribute('viewBox','0 0 '+W+' '+H);}
+
+  var C={train:'#B45309',reload:'#4338CA',predict:'#0D9488',monitor:'#7C3AED',obs:'#C2410C',fs:'#92400E'};
+  function ns(t){return document.createElementNS('http://www.w3.org/2000/svg',t);}
+
+  /* arrowhead markers */
+  var defs=ns('defs');
+  Object.keys(C).forEach(function(k){
+    var m=ns('marker');m.setAttribute('id','ah'+k);
+    m.setAttribute('markerWidth','8');m.setAttribute('markerHeight','6');
+    m.setAttribute('refX','7.5');m.setAttribute('refY','3');m.setAttribute('orient','auto');
+    var p=ns('polygon');p.setAttribute('points','0 0,8 3,0 6');p.setAttribute('fill',C[k]);
+    m.appendChild(p);defs.appendChild(m);
+  });
+  svg.appendChild(defs);
+
+  function gp(id,edge,frac){
+    frac=frac===undefined?0.5:frac;
+    var e=document.getElementById(id);if(!e)return{x:0,y:0};
+    var r=e.getBoundingClientRect();
+    var x=r.left-wr.left,y=r.top-wr.top,w=r.width,h=r.height;
+    if(edge==='top')   return{x:x+w*frac,y:y};
+    if(edge==='bottom')return{x:x+w*frac,y:y+h};
+    if(edge==='left')  return{x:x,y:y+h*frac};
+    if(edge==='right') return{x:x+w,y:y+h*frac};
+    return{x:x,y:y};
+  }
+  function midGap(a,b){return(gp(a,'bottom').y+gp(b,'top').y)/2;}
+
+  /* draw arrow path */
+  function ap(d,ck,dash){
+    var p=ns('path');p.setAttribute('d',d);p.setAttribute('fill','none');
+    p.setAttribute('stroke',C[ck]);p.setAttribute('stroke-width','1.7');
+    if(dash)p.setAttribute('stroke-dasharray','5 3');
+    p.setAttribute('marker-end','url(#ah'+ck+')');svg.appendChild(p);
+  }
+
+  /* ── label ALONG a vertical segment ────────────────────────────────
+     Text is rotated 90° so it runs top-to-bottom beside the arrow line.
+     Width when rotated = only 8 px (the font cap-height), so multiple
+     parallel verticals never collide regardless of text length.
+     x   = x of the arrow line
+     y1,y2 = segment endpoints
+     side = +1 right, −1 left
+     frac = fractional position along segment (0=top, 1=bottom)       */
+  function vLab(x, y1, y2, text, ck, side, frac){
+    side=side===undefined?1:side;
+    frac=frac===undefined?0.5:frac;
+    var cy=y1+(y2-y1)*frac;
+    var g=ns('g');
+    var t=ns('text');
+    t.setAttribute('x','0');t.setAttribute('y','0');
+    t.setAttribute('text-anchor','middle');
+    t.setAttribute('dominant-baseline','middle');
+    t.setAttribute('font-size','8');
+    t.setAttribute('font-family',"'Courier New',monospace");
+    t.setAttribute('fill',C[ck]);
+    /* white halo makes text readable over any background */
+    t.setAttribute('stroke','white');t.setAttribute('stroke-width','2.5');
+    t.setAttribute('paint-order','stroke fill');
+    t.textContent=text;
+    /* translate centre to position, then rotate so text reads top→bottom */
+    g.setAttribute('transform','translate('+(x+side*9)+','+cy+') rotate(90)');
+    g.appendChild(t);svg.appendChild(g);
+  }
+
+  /* ── label ABOVE (or below) a horizontal segment ───────────────────
+     Plain horizontal text placed just above the arrow line.           */
+  function hLab(x1, x2, y, text, ck, below){
+    var t=ns('text');
+    t.setAttribute('x',(x1+x2)/2);
+    t.setAttribute('y', below ? y+13 : y-5);
+    t.setAttribute('text-anchor','middle');
+    t.setAttribute('dominant-baseline', below?'hanging':'auto');
+    t.setAttribute('font-size','8');
+    t.setAttribute('font-family',"'Courier New',monospace");
+    t.setAttribute('fill',C[ck]);
+    t.setAttribute('stroke','white');t.setAttribute('stroke-width','2.5');
+    t.setAttribute('paint-order','stroke fill');
+    t.textContent=text;
+    svg.appendChild(t);
+  }
+
+  /* routing channels */
+  var lGapX=(gp('trainpy','right').x+gp('fastapi','left').x)/2;
+  var rGapX=(gp('fastapi','right').x+gp('monitorpy','left').x)/2;
+  var rGapN=rGapX+22, rGapR=rGapX, rGapS=rGapX-22;
+  var gap12=midGap('airflow','trainpy');
+  var gap23=midGap('fastapi','mlflow');
+  var gap34=midGap('evidently','mlruns');
+
+  /* client position */
+  var trainBot=gp('trainpy','bottom').y, fapiBot=gp('fastapi','bottom').y;
+  var iY=(trainBot+fapiBot)/2;
+  var cli=document.getElementById('client');
+  cli.style.top=(iY-cli.offsetHeight/2)+'px';
+  wr=gw.getBoundingClientRect();
+
+  /* swimlane labels */
+  ['sw0','sw1','sw2','sw3'].forEach(function(id,i){
+    var refs=['airflow','fastapi','postgres','row4'];
+    var el=document.getElementById(id);
+    var ref=document.getElementById(refs[i]).getBoundingClientRect();
+    el.style.top=(ref.top-wr.top)+'px';el.style.height=ref.height+'px';
+  });
+
+  var airB=gp('airflow','bottom').y, fapiT=gp('fastapi','top').y;
+  var yB=fapiT+52;
+
+  /* ═══════════════════════════════════════════════════════════════
+     ALL 19 CONNECTIONS — zero box overlap guaranteed:
+     · Rotated labels (vLab) are exactly 8 px wide, run parallel to
+       the arrow shaft, never intersect adjacent box borders.
+     · Horizontal labels (hLab) sit 5 px above their line.
+     · White stroke halo (2.5 px) makes every label legible over
+       any background without a box.
+  ═══════════════════════════════════════════════════════════════ */
+
+  /* 1  Airflow → FastAPI  train @daily */
+  var x1=gp('fastapi','top',0.22).x;
+  ap('M '+x1+' '+airB+' V '+fapiT,'train');
+  vLab(x1, airB, fapiT, '① POST /train · @daily  →  train_and_register_model', 'train', 1);
+
+  /* 2  Airflow → FastAPI  reload */
+  var x2=gp('fastapi','top',0.50).x;
+  ap('M '+x2+' '+airB+' V '+fapiT,'reload');
+  vLab(x2, airB, fapiT, '② POST /reload-model  →  reload_fastapi_model (after train)', 'reload', 1);
+
+  /* 3  Airflow → FastAPI  monitor @hourly */
+  var x3=gp('fastapi','top',0.78).x;
+  ap('M '+x3+' '+airB+' V '+fapiT,'monitor');
+  vLab(x3, airB, fapiT, '③ POST /run-monitoring · @hourly  →  run_evidently_monitoring', 'monitor', 1);
+
+  /* 4  FastAPI → train.py  horizontal */
+  ap('M '+gp('fastapi','left').x+' '+yB+' H '+gp('trainpy','right').x,'train');
+  hLab(gp('trainpy','right').x, gp('fastapi','left').x, yB,
+    '④ subprocess.run(src.train)  ←  POST /train','train');
+
+  /* 5  FastAPI → monitor.py  horizontal */
+  ap('M '+gp('fastapi','right').x+' '+yB+' H '+gp('monitorpy','left').x,'monitor');
+  hLab(gp('fastapi','right').x, gp('monitorpy','left').x, yB,
+    '⑤ subprocess.run(src.monitor)  ←  POST /run-monitoring','monitor');
+
+  /* 6  Client → FastAPI  horizontal */
+  var cliR=gp('client','right',0.5).x, faL=gp('fastapi','left').x;
+  ap('M '+cliR+' '+iY+' H '+faL,'predict');
+  hLab(cliR, faL, iY, "⑥ POST /predict  ·  {'features': [f0…f29]}",'predict');
+
+  /* 7  FastAPI → PostgreSQL  vertical */
+  var j_s=gp('fastapi','bottom',0.35), j_t=gp('postgres','top',0.35);
+  ap('M '+j_s.x+' '+j_s.y+' V '+j_t.y,'predict');
+  vLab(j_s.x, j_s.y, j_t.y,
+    '⑦ prediction_logs.insert(features, prediction, probability)','predict', 1);
+
+  /* 8  MLflow → FastAPI  reload: elbow H-V-H  label on V segment */
+  var h_s=gp('fastapi','left',0.72), h_t=gp('mlflow','right',0.44);
+  ap('M '+h_s.x+' '+h_s.y+' H '+lGapX+' V '+h_t.y+' H '+h_t.x,'reload');
+  vLab(lGapX, h_s.y, h_t.y,
+    '⑧ search_model_versions()  →  pytorch.load_model(runs:/{run_id}/model)','reload', -1);
+
+  /* 9  train.py → MLflow  vertical */
+  var c_s=gp('trainpy','bottom',0.44), c_t=gp('mlflow','top',0.44);
+  ap('M '+c_s.x+' '+c_s.y+' V '+c_t.y,'train');
+  vLab(c_s.x, c_s.y, c_t.y,
+    '⑨ mlflow.start_run() · log_params() · log_metrics()  ·  pytorch.log_model(MODEL_NAME)','train', 1);
+
+  /* 10 train.py → ref.parquet  dashed elbow: label on H segment */
+  var f_s=gp('trainpy','bottom',0.70), f_t=gp('refparq','top',0.28);
+  var fGy=gap23-12;
+  ap('M '+f_s.x+' '+f_s.y+' V '+fGy+' H '+f_t.x+' V '+f_t.y,'fs',true);
+  hLab(f_s.x, f_t.x, fGy, '⑩ reference_df.to_parquet(REFERENCE_FILE)','fs');
+
+  /* 11 MLflow → PostgreSQL  elbow: label on H segment */
+  var d_s=gp('mlflow','right',0.50), d_t=gp('postgres','left',0.50);
+  ap('M '+d_s.x+' '+d_s.y+' H '+lGapX+' V '+d_t.y+' H '+d_t.x,'train');
+  hLab(d_s.x, lGapX, d_s.y,
+    '⑪ --backend-store-uri postgresql+psycopg://...  ·  runs · params · metrics · model_versions','train');
+
+  /* 12 MLflow → ./mlruns  vertical dashed */
+  var e_s=gp('mlflow','bottom',0.54), e_t=gp('mlruns','top',0.54);
+  ap('M '+e_s.x+' '+e_s.y+' V '+e_t.y,'fs',true);
+  vLab(e_s.x, e_s.y, e_t.y,
+    '⑫ --default-artifact-root file:///app/mlruns  ·  model.pth · feature_names.txt','fs', 1);
+
+  /* 13 monitor.py → PostgreSQL  elbow: label on V segment */
+  var n_s=gp('monitorpy','left',0.68), n_t=gp('postgres','right',0.36);
+  ap('M '+n_s.x+' '+n_s.y+' H '+rGapN+' V '+n_t.y+' H '+n_t.x,'monitor');
+  vLab(rGapN, n_s.y, n_t.y,
+    '⑬ SELECT timestamp, features, prediction, probability FROM prediction_logs LIMIT 500','monitor', -1);
+
+  /* 14 monitor.py → ref.parquet  dashed elbow: label on H segment */
+  var o_s=gp('monitorpy','bottom',0.26), o_t=gp('refparq','top',0.72);
+  var oGy=gap23+12;
+  ap('M '+o_s.x+' '+o_s.y+' V '+oGy+' H '+o_t.x+' V '+o_t.y,'fs',true);
+  hLab(o_t.x, o_s.x, oGy, '⑭ reference_df = pd.read_parquet(REFERENCE_FILE)','fs', true);
+
+  /* 15 monitor.py → Evidently  vertical: label left side */
+  var p_s=gp('monitorpy','bottom',0.60), p_t=gp('evidently','top',0.60);
+  ap('M '+p_s.x+' '+p_s.y+' V '+p_t.y,'monitor');
+  vLab(p_s.x, p_s.y, p_t.y,
+    '⑮ Report([DataSummaryPreset(), DataDriftPreset()]).run(current_data, reference_data)','monitor', -1);
+
+  /* 16 Evidently → ./reports/  elbow: label on H segment in gap34 */
+  var q_s=gp('evidently','bottom',0.44), q_t=gp('reports','top',0.64);
+  ap('M '+q_s.x+' '+q_s.y+' V '+gap34+' H '+q_t.x+' V '+q_t.y,'monitor');
+  hLab(q_t.x, q_s.x, gap34,
+    "⑯ save_html('data_drift_latest.html')  ·  save_json('data_drift_latest.json')",'monitor');
+
+  /* 17 FastAPI → ./reports/  dashed elbow: label on V segment */
+  var r_s=gp('fastapi','right',0.86), r_t=gp('reports','top',0.86);
+  ap('M '+r_s.x+' '+r_s.y+' H '+rGapR+' V '+gap34+' H '+r_t.x+' V '+r_t.y,'fs',true);
+  vLab(rGapR, r_s.y, gap34,
+    "⑰ app.mount('/reports', StaticFiles(directory=REPORTS_DIR))",'fs', 1);
+
+  /* 18 Prometheus → FastAPI  upward elbow: label on V segment */
+  var s_s=gp('prometheus','top',0.50), s_t=gp('fastapi','right',0.81);
+  ap('M '+s_s.x+' '+s_s.y+' H '+rGapS+' V '+s_t.y+' H '+s_t.x,'obs');
+  vLab(rGapS, s_t.y, s_s.y,
+    '⑱ GET http://api:8000/metrics every 5s  ·  scrape_interval: 5s','obs', -1);
+
+  /* 19 Grafana → Prometheus  horizontal */
+  var u_s=gp('grafana','left',0.50), u_t=gp('prometheus','right',0.50);
+  ap('M '+u_s.x+' '+u_s.y+' H '+u_t.x,'obs');
+  hLab(u_t.x, u_s.x, u_s.y,
+    '⑲ PromQL queries  ·  url: http://prometheus:9090  ·  datasource.yml','obs');
+
+  sz();
+});
+</script>
+</body>
+</html>
